@@ -1,0 +1,12 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: ServiceEntry
+metadata:
+  name: aspnet4you-se
+  namespace: istio-config
+spec:
+  hosts:
+    - "*.aspnet4you.com"
+  ports:
+    - name: tls
+      number: 443
+      protocol: TLS

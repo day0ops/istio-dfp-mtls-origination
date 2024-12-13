@@ -1,0 +1,66 @@
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+metadata:
+  name: istio-custom-cp-configuration
+  namespace: istio-system
+spec:
+  revision: 1-23-3
+  components:
+    base:
+      enabled: true
+    cni:
+      enabled: false
+    egressGateways:
+      - name: istio-egressgateway
+        enabled: true
+        k8s:
+          hpaSpec:
+            minReplicas: 1
+    ingressGateways:
+      - name: istio-ingressgateway
+        enabled: true
+        k8s:
+          hpaSpec:
+            minReplicas: 1
+    pilot:
+      enabled: true
+      k8s:
+        hpaSpec:
+          minReplicas: 1
+  meshConfig:
+    accessLogFile: "/dev/stdout"
+    accessLogEncoding: "JSON"
+    rootNamespace: istio-config
+    outboundTrafficPolicy:
+      mode: REGISTRY_ONLY
+    defaultConfig:
+      proxyStatsMatcher:
+        inclusionRegexps:
+          - ".*outlier_detection.*"
+          - ".*upstream_rq_.*"
+          - ".*upstream_cx_.*"
+          - ".*cx_tx_.*"
+          - ".*cx_rx_.*"
+          - ".*upstream_rs_.*"
+  values:
+    global:
+      istiod:
+        enableAnalysis: true
+    gateways:
+      istio-egressgateway:
+        volumes:
+          ## created externally
+          - name: aspnet4you-certs
+            secret:
+              defaultMode: 420
+              optional: true
+              secretName: istio-egressgateway-ca-certs
+        volumeMounts:
+          - name: aspnet4you-certs
+            mountPath: /etc/custom-certs/aspnet4you
+            readOnly: true
+    pilot:
+      env:
+        PILOT_ENABLE_STATUS: true
+    sidecarInjectorWebhook:
+      rewriteAppHTTPProbe: true

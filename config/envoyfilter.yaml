@@ -1,0 +1,82 @@
+# Envoy filter sets up a DFP to forward any requests externally via the Egress GW.
+# It will try to exchange certs via mTLS first. Failing to do with the upstream will result in transport failures !!!
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: cluster
+  namespace: istio-system 
+spec:
+  workloadSelector:
+    labels:
+      istio: egressgateway
+  configPatches:
+    - applyTo: NETWORK_FILTER
+      match:
+        context: GATEWAY
+        listener:
+          portNumber: 8443
+          filterChain:
+            filter:
+              name: envoy.filters.network.http_connection_manager
+      patch:
+        operation: MERGE
+        value:
+          name: envoy.filters.network.http_connection_manager
+          typedConfig:
+            '@type': type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+            stat_prefix: ingress_http
+            route_config:
+              name: local_route
+              virtual_hosts:
+                - name: local_service
+                  domains: ["*"]
+                  routes:
+                    - match:
+                        prefix: "/"
+                      route:
+                        cluster: dynamic_forward_proxy_cluster
+                      typed_per_filter_config:
+                        envoy.filters.http.dynamic_forward_proxy:
+                          "@type": type.googleapis.com/envoy.extensions.filters.http.dynamic_forward_proxy.v3.PerRouteConfig
+    - applyTo: HTTP_FILTER
+      match:
+        context: GATEWAY
+        listener:
+          portNumber: 8443
+          filterChain:
+            filter:
+              name: "envoy.filters.network.http_connection_manager"
+              subFilter:
+                name: "envoy.filters.http.router"
+      patch:
+        operation: INSERT_BEFORE
+        value:
+          name: envoy.filters.http.dynamic_forward_proxy
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.http.dynamic_forward_proxy.v3.FilterConfig
+    - applyTo: CLUSTER
+      patch:
+        operation: ADD
+        value:
+          name: dynamic_forward_proxy_cluster
+          lb_policy: CLUSTER_PROVIDED
+          cluster_type:
+            name: envoy.clusters.dynamic_forward_proxy
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.clusters.dynamic_forward_proxy.v3.ClusterConfig
+          transport_socket:
+            name: envoy.transport_sockets.tls
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+              common_tls_context:
+                tls_params:
+                  tls_minimum_protocol_version: TLSv1_2
+                  tls_maximum_protocol_version: TLSv1_3
+                tls_certificates:
+                  - certificate_chain:
+                      filename: /etc/istio/egressgateway-certs/tls.crt
+                    private_key:
+                      filename: /etc/istio/egressgateway-certs/tls.key
+                validation_context:
+                  trusted_ca: 
+                    filename: /etc/istio/egressgateway-ca-certs/ca.crt

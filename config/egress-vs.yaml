@@ -1,0 +1,25 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: egress-vs
+  namespace: curl
+spec:
+  hosts:
+    - "*.aspnet4you.com"
+  gateways:
+    - mesh
+  http:
+    - match:
+        ## currently only allows for http traffic internally
+        - gateways:
+            - mesh
+          port: 80
+      route:
+        - destination:
+            host: istio-egressgateway.istio-system.svc.cluster.local
+            subset: egress
+            port:
+              number: 443
+          weight: 100
+
+  ## TODO: also handle secure traffic internally

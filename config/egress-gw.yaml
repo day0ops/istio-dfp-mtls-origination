@@ -1,0 +1,18 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: egress-gw
+  namespace: curl
+spec:
+  selector:
+    istio: egressgateway
+  servers:
+    - port:
+        name: https-egress
+        number: 443
+        protocol: HTTPS
+      hosts:
+        ## allow all requests
+        - "*"
+      tls:
+        mode: ISTIO_MUTUAL
